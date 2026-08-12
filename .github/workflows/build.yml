@@ -320,8 +320,11 @@ jobs:
             基于 OpenWrt 官方 ImageBuilder 定制，精简稳定。
 
             ### 安装方法
-            - **首次刷入**: 使用 `*-factory.bin` 通过 Web 或 TFTP 刷入
-            - **升级更新**: 使用 `*-sysupgrade.bin` 通过 LuCI 或 `sysupgrade` 命令升级
+            1. 进入 Breed 刷不死后台（按住 Reset 键通电，等指示灯闪烁后松开）
+            2. 浏览器访问 `192.168.1.1`
+            3. 选择 **固件更新** → **升级固件**
+            4. 选择 `openwrt-24.10.7-custom-ramips-mt7621-youhua_wr1200js-squashfs-sysupgrade.bin` 文件
+            5. 点击 **上传** 并等待刷入完成，路由器会自动重启
 
             ### 预装软件
             | 分类 | 软件 |
