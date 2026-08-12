@@ -1,0 +1,27 @@
+# OpenWrt build artifacts
+openwrt-ib/
+output/
+*.bin
+*.img
+*.gz
+*.zst
+*.tar
+sha256sums.txt
+
+# GitHub Actions
+actions-runner/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log

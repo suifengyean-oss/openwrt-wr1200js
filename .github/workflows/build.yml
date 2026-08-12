@@ -149,101 +149,6 @@ jobs:
             echo "⚠ luci-app-wizard 下载失败, 跳过"
           fi
 
-      - name: Download frpc 0.69.1
-        run: |
-          echo "=== 下载 frpc 0.69.1 mipsle ==="
-          mkdir -p /tmp/argon-files/usr/bin
-
-          # 下载 frpc mipsle
-          FRPC_URL="https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_linux_mipsle.tar.gz"
-          curl -L --retry 3 --retry-delay 5 --connect-timeout 30 \
-            -o /tmp/frpc.tar.gz "$FRPC_URL"
-
-          FRPC_SIZE=$(stat -c%s /tmp/frpc.tar.gz 2>/dev/null || echo 0)
-          if [ "$FRPC_SIZE" -gt 1000000 ]; then
-            echo "✅ frpc 下载成功 (${FRPC_SIZE} bytes)"
-            cd /tmp
-            tar xzf frpc.tar.gz frp_0.69.1_linux_mipsle/frpc
-            cp frp_0.69.1_linux_mipsle/frpc /tmp/argon-files/usr/bin/frpc
-            chmod +x /tmp/argon-files/usr/bin/frpc
-            echo "✅ frpc 二进制已安装"
-            rm -rf /tmp/frpc.tar.gz /tmp/frp_0.69.1_linux_mipsle
-          else
-            echo "❌ frpc 下载失败!"
-            exit 1
-          fi
-
-      - name: Install luci-app-frpc-new (TOML-based LuCI app)
-        run: |
-          echo "=== 安装 luci-app-frpc-new LuCI 应用 ==="
-          LUCI_APP_DIR="${GITHUB_WORKSPACE}/luci-app-frpc-new"
-
-          if [ ! -d "$LUCI_APP_DIR" ]; then
-            echo "❌ luci-app-frpc-new 目录不存在!"
-            exit 1
-          fi
-
-          # 创建目标目录
-          mkdir -p /tmp/argon-files/usr/lib/lua/luci/controller
-          mkdir -p /tmp/argon-files/usr/lib/lua/luci/model/cbi
-          mkdir -p /tmp/argon-files/usr/lib/lua/luci/view/frpc
-          mkdir -p /tmp/argon-files/usr/lib/lua/luci/i18n
-          mkdir -p /tmp/argon-files/etc/config
-          mkdir -p /tmp/argon-files/etc/init.d
-          mkdir -p /tmp/argon-files/usr/lib/frpc
-
-          # 复制 LuCI 控制器
-          cp "$LUCI_APP_DIR/luasrc/controller/frpc.lua" \
-            /tmp/argon-files/usr/lib/lua/luci/controller/frpc.lua
-          echo "✅ 控制器已安装"
-
-          # 复制 LuCI CBI 模型
-          cp "$LUCI_APP_DIR/luasrc/model/cbi/frpc-client.lua" \
-            /tmp/argon-files/usr/lib/lua/luci/model/cbi/frpc-client.lua
-          cp "$LUCI_APP_DIR/luasrc/model/cbi/frpc-proxy.lua" \
-            /tmp/argon-files/usr/lib/lua/luci/model/cbi/frpc-proxy.lua
-          echo "✅ CBI 模型已安装"
-
-          # 复制 LuCI 视图模板
-          cp "$LUCI_APP_DIR/luasrc/view/frpc/status_display.htm" \
-            /tmp/argon-files/usr/lib/lua/luci/view/frpc/status_display.htm
-          echo "✅ 视图模板已安装"
-
-          # 复制 UCI 配置文件
-          cp "$LUCI_APP_DIR/root/etc/config/frpc" \
-            /tmp/argon-files/etc/config/frpc
-          echo "✅ UCI 配置已安装"
-
-          # 复制 init.d 脚本（procd + UCI 集成版，替代旧的简单脚本）
-          cp "$LUCI_APP_DIR/root/etc/init.d/frpc" \
-            /tmp/argon-files/etc/init.d/frpc
-          chmod +x /tmp/argon-files/etc/init.d/frpc
-          echo "✅ init.d 脚本已安装"
-
-          # 复制 TOML 生成脚本
-          cp "$LUCI_APP_DIR/root/usr/lib/frpc/generate_toml.sh" \
-            /tmp/argon-files/usr/lib/frpc/generate_toml.sh
-          chmod +x /tmp/argon-files/usr/lib/frpc/generate_toml.sh
-          echo "✅ TOML 生成脚本已安装"
-
-          # 编译 .po 翻译文件为 .lmo 格式
-          PO2LMO="${GITHUB_WORKSPACE}/openwrt-ib/staging_dir/host/bin/po2lmo"
-          if [ -x "$PO2LMO" ]; then
-            "$PO2LMO" "$LUCI_APP_DIR/po/zh-cn/frpc.po" \
-              /tmp/argon-files/usr/lib/lua/luci/i18n/frpc.zh-cn.lmo
-            echo "✅ 中文翻译已编译安装"
-          else
-            echo "⚠ po2lmo 未找到，跳过翻译编译"
-          fi
-
-          echo ""
-          echo "=== luci-app-frpc-new 文件清单 ==="
-          find /tmp/argon-files/usr/lib/lua/luci -path '*/frpc*' -type f | sort
-          find /tmp/argon-files/usr/lib/lua/luci/i18n -name 'frpc*' -type f 2>/dev/null
-          ls -la /tmp/argon-files/etc/config/frpc
-          ls -la /tmp/argon-files/etc/init.d/frpc
-          ls -la /tmp/argon-files/usr/lib/frpc/generate_toml.sh
-
       - name: Create UCI defaults
         run: |
           echo "=== 创建 UCI defaults 快速配置 ==="
@@ -326,8 +231,6 @@ jobs:
           cd openwrt-ib
 
           # 软件包列表 - 精简以适配 16MB flash
-          # 已移除: iStore, xray-core, samba4, adblock, wireguard
-          # 内置: frpc 0.69.1 + luci-app-frpc-new (通过 FILES 注入)
           PACKAGES="\
             luci luci-i18n-base-zh-cn luci-compat luci-lib-ipkg \
             -wpad-basic-mbedtls wpad-openssl \
@@ -351,7 +254,7 @@ jobs:
           ls -la /tmp/argon-files/
           ls -la /tmp/argon-files/usr/bin/
 
-          # 使用 FILES 机制将 Argon 主题 + frpc 注入根文件系统
+          # 使用 FILES 机制将 Argon 主题注入根文件系统
           make image PROFILE="${PROFILE}" \
             PACKAGES="${PACKAGES}" \
             FILES="/tmp/argon-files" \
@@ -410,63 +313,20 @@ jobs:
 
             ### 更新日志
 
-            #### v1.0.30
-            - 新增 luci-app-frpc-new：适配 frpc 0.69.1 TOML 格式的 LuCI Web 管理界面
-            - 支持通过 Web 界面配置服务器连接、添加/编辑/删除代理规则
-            - 实时显示 frpc 运行状态、版本号、PID
-            - 自动将 UCI 配置转换为 TOML 格式（无需手动编辑 TOML 文件）
-            - 支持 TCP/UDP/HTTP/HTTPS/STCP/XTCP 代理类型
-            - 支持 SOCKS5/HTTP 代理插件配置
-            - 完整中文翻译
-
-            #### v1.0.29
-            - 移除 iStore 应用商店和 xray-core（精简固件体积）
-            - 内置 frpc 0.69.1（最新版，支持 TOML 配置格式）
+            #### v1.0.31
+            - 移除 frpc，精简固件体积
             - 保留所有基础功能：WiFi、PPPoE、SmartDNS、SQM、DDNS、UPnP 等
-
-            #### v1.0.28
-            - 修复构建配置：移除不存在的 luci-proto-static 包
-            - 更新 README 文档
-
-            #### v1.0.27
-            - 首个基于 OpenWrt 24.10.7 的正式版本
 
             ### 固件说明
             基于 OpenWrt 官方 ImageBuilder 定制，精简稳定。
-            内置 frpc 0.69.1 远程穿透客户端 + LuCI Web 管理界面。
 
             ### 安装方法
             - **首次刷入**: 使用 `*-factory.bin` 通过 Web 或 TFTP 刷入
             - **升级更新**: 使用 `*-sysupgrade.bin` 通过 LuCI 或 `sysupgrade` 命令升级
 
-            ### frpc 使用说明
-            frpc 已内置在固件中，支持两种配置方式：
-
-            **方式一：LuCI Web 界面（推荐）**
-            1. 登录 LuCI 管理界面 (http://192.168.2.1)
-            2. 进入 **服务 → frpc** 菜单
-            3. 填写服务器地址、端口、认证令牌
-            4. 添加代理规则（SOCKS5/TCP/UDP 等）
-            5. 保存后自动生效
-
-            **方式二：命令行**
-            ```bash
-            # 编辑 UCI 配置
-            uci set frpc.main.server_addr='your-server.com'
-            uci set frpc.main.token='your-token'
-            uci commit frpc
-
-            # 启动 frpc
-            /etc/init.d/frpc start
-
-            # 设置开机自启
-            /etc/init.d/frpc enable
-            ```
-
             ### 预装软件
             | 分类 | 软件 |
             |------|------|
-            | 远程穿透 | frpc 0.69.1 + LuCI 管理界面 (支持 SOCKS5/TCP/UDP) |
             | Web 管理 | LuCI + Argon 主题 + 中文 |
             | WiFi | wpad-openssl (AP/STA/WDS/Mesh/WPA3) |
             | 拨号 | PPPoE |
