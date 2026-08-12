@@ -39,11 +39,9 @@
 
 ## 安装方法
 
-1. 进入 Breed 刷不死后台（按住 Reset 键通电，等指示灯闪烁后松开）
-2. 浏览器访问 `192.168.1.1`
-3. 选择 **固件更新** → **升级固件**
-4. 选择 `openwrt-24.10.7-custom-ramips-mt7621-youhua_wr1200js-squashfs-sysupgrade.bin` 文件
-5. 点击 **上传** 并等待刷入完成，路由器会自动重启
+1. 下载最新 Release 中的 `squashfs-sysupgrade.bin` 文件
+2. 刷入 Breed 后断电，按住 WiFi 按钮插电，访问 `192.168.1.1` 进入 Breed
+3. 恢复出厂后刷入之前下载的 bin 文件
 
 ## 更新日志
 
