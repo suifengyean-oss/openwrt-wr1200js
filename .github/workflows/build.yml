@@ -251,8 +251,7 @@ jobs:
           echo "Building firmware for ${PROFILE}..."
           echo "Packages: ${PACKAGES}"
           echo "FILES dir: /tmp/argon-files"
-          ls -la /tmp/argon-files/
-          ls -la /tmp/argon-files/usr/bin/
+          ls -la /tmp/argon-files/ 2>/dev/null || echo "FILES directory empty or not exists"
 
           # 使用 FILES 机制将 Argon 主题注入根文件系统
           make image PROFILE="${PROFILE}" \
