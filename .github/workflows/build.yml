@@ -6,7 +6,7 @@ on:
       openwrt_version:
         description: 'OpenWrt version'
         required: false
-        default: '24.10.7'
+        default: '25.12.5'
   push:
     branches:
       - main
@@ -14,7 +14,7 @@ on:
       - 'v*'
 
 env:
-  OPENWRT_VERSION: '24.10.7'
+  OPENWRT_VERSION: '25.12.5'
   TARGET: 'ramips'
   SUBTARGET: 'mt7621'
   PROFILE: 'youhua_wr1200js'
@@ -70,9 +70,8 @@ jobs:
           mkdir -p /tmp/argon-files
 
           for URL in \
-            "https://dl.openwrt.ai/latest/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.3-r3_all.ipk" \
-            "https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.3-r3_all.ipk" \
-            "https://dl.openwrt.ai/releases/24.10/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.3-r3_all.ipk"; do
+            "https://dl.openwrt.ai/latest/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.7-r14_all.ipk" \
+            "https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.7-r14_all.ipk"; do
             echo "Trying: $URL"
             curl -L --retry 2 --retry-delay 3 --connect-timeout 20 \
               -o /tmp/luci-theme-argon.ipk "$URL" 2>/dev/null
@@ -234,18 +233,9 @@ jobs:
           PACKAGES="\
             luci luci-i18n-base-zh-cn luci-compat luci-lib-ipkg \
             -wpad-basic-mbedtls wpad-openssl \
-            luci-proto-ppp ppp-mod-pppoe \
-            block-mount kmod-usb-storage kmod-usb-storage-extras \
-            kmod-fs-ext4 kmod-fs-vfat kmod-fs-exfat \
-            kmod-nls-cp437 kmod-nls-cp936 kmod-nls-utf8 \
-            luci-app-smartdns smartdns \
-            luci-app-sqm sqm-scripts \
-            luci-app-ddns ddns-scripts \
+            smartdns luci-app-smartdns \
             luci-app-upnp miniupnpd-nftables \
-            luci-app-wol \
-            luci-app-hd-idle \
-            nano htop curl wget \
-            e2fsprogs \
+            nano wget \
           "
 
           echo "Building firmware for ${PROFILE}..."
