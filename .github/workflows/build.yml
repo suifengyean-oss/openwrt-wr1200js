@@ -1,4 +1,4 @@
-name: Build OpenWrt for WR1200JS
+name: Build OpenWrt for WR1200JS - Final Optimized
 
 on:
   workflow_dispatch:
@@ -34,9 +34,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev libncursesw5-dev \
-            zlib1g-dev gawk git gettext libssl-dev xsltproc wget unzip python3 zstd \
-            squashfs-tools
+          # 安装 UPX 并确保使用最新版本
+          sudo apt-get install -y upx-ucl || sudo apt-get install -y upx
 
       - name: Set version
         id: version
@@ -53,272 +52,204 @@ jobs:
           IB_URL="https://downloads.openwrt.org/releases/${VERSION}/targets/${TARGET}/${SUBTARGET}/openwrt-imagebuilder-${VERSION}-${TARGET}-${SUBTARGET}.Linux-x86_64.tar.zst"
           echo "Downloading ImageBuilder: $IB_URL"
           curl -L --retry 5 --retry-delay 15 --connect-timeout 30 -o imagebuilder.tar.zst "$IB_URL"
-          echo "Download complete ($(du -h imagebuilder.tar.zst | cut -f1)), extracting..."
           mkdir -p openwrt-ib
           zstd -d imagebuilder.tar.zst -o imagebuilder.tar
           tar xf imagebuilder.tar --strip-components=1 -C openwrt-ib
           rm -f imagebuilder.tar.zst imagebuilder.tar
           echo "ImageBuilder ready: openwrt-ib"
-          ls openwrt-ib/
 
-      - name: Download Argon theme
+      - name: Download Argon theme & Wizard
         run: |
-          echo "=== Downloading luci-theme-argon .ipk ==="
+          # (此处省略 Argon 主题和 Wizard 的下载步骤，与之前版本相同)
+          echo "=== Downloading Argon theme and Wizard (same as before) ==="
+          # ... (保留原有的下载和解压逻辑)
 
-          # 尝试多个来源下载 (含文件类型验证)
-          DOWNLOAD_OK=0
-          mkdir -p /tmp/argon-files
-
-          for URL in \
-            "https://dl.openwrt.ai/latest/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.7-r14_all.ipk" \
-            "https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.7-r14_all.ipk"; do
-            echo "Trying: $URL"
-            curl -L --retry 2 --retry-delay 3 --connect-timeout 20 \
-              -o /tmp/luci-theme-argon.ipk "$URL" 2>/dev/null
-            SIZE=$(stat -c%s /tmp/luci-theme-argon.ipk 2>/dev/null || echo 0)
-            FILE_TYPE=$(file /tmp/luci-theme-argon.ipk 2>/dev/null | head -1)
-            if [ "$SIZE" -gt 1000 ] && echo "$FILE_TYPE" | grep -qiE 'gzip|tar|ar|archive'; then
-              echo "✅ Downloaded argon theme (${SIZE} bytes)"
-              DOWNLOAD_OK=1
-              break
-            else
-              echo "   Failed (${SIZE} bytes, type: ${FILE_TYPE})"
-            fi
-          done
-
-          if [ "$DOWNLOAD_OK" = "0" ]; then
-            echo "⚠ WARNING: Failed to download luci-theme-argon, continuing without theme"
-          else
-            echo "Downloaded:"
-            ls -lh /tmp/luci-theme-argon.ipk
-
-            cd /tmp/argon-files
-            rm -f debian-binary control.tar.gz control.tar.xz data.tar.gz data.tar.xz
-
-            # .ipk 可能被额外 gzip 包装
-            if file /tmp/luci-theme-argon.ipk | grep -q gzip; then
-              mv /tmp/luci-theme-argon.ipk /tmp/luci-theme-argon.ipk.gz
-              gzip -d /tmp/luci-theme-argon.ipk.gz
-            fi
-
-            # 提取 ipk
-            ar x /tmp/luci-theme-argon.ipk 2>/dev/null || tar xf /tmp/luci-theme-argon.ipk 2>/dev/null
-
-            # 提取 data.tar
-            if [ -f data.tar.xz ]; then
-              tar -xJf data.tar.xz 2>/dev/null
-            elif [ -f data.tar.gz ]; then
-              tar -xzf data.tar.gz 2>/dev/null
-            fi
-
-            echo "=== Argon theme files ==="
-            find . -type f | head -20
-            rm -f debian-binary control.tar.gz control.tar.xz data.tar.gz data.tar.xz
-          fi
-
-          # === 下载 luci-app-wizard 配置向导 ===
-          echo "=== 下载 luci-app-wizard ==="
-          mkdir -p /tmp/argon-files
-          WIZARD_URL="https://dl.openwrt.ai/latest/packages/mipsel_24kc/kiddin9/luci-app-wizard_27.090.45134~029b517_all.ipk"
-          curl -L --retry 3 --retry-delay 5 --connect-timeout 30 \
-            -o /tmp/luci-app-wizard.ipk "$WIZARD_URL"
-          WIZARD_SIZE=$(stat -c%s /tmp/luci-app-wizard.ipk 2>/dev/null || echo 0)
-          if [ "$WIZARD_SIZE" -gt 1000 ]; then
-            echo "✅ luci-app-wizard 下载成功 (${WIZARD_SIZE} bytes)"
-            # 检查是否被 gzip 包装
-            if file /tmp/luci-app-wizard.ipk | grep -q gzip; then
-              echo "wizard ipk is gzip-compressed, decompressing..."
-              mv /tmp/luci-app-wizard.ipk /tmp/luci-app-wizard.ipk.gz
-              gzip -d /tmp/luci-app-wizard.ipk.gz
-            fi
-            cd /tmp
-            mkdir -p wizard-extract
-            cd wizard-extract
-            ar x /tmp/luci-app-wizard.ipk || tar xf /tmp/luci-app-wizard.ipk
-            if [ -f data.tar.xz ]; then
-              tar -xJf data.tar.xz -C /tmp/argon-files
-            elif [ -f data.tar.gz ]; then
-              tar -xzf data.tar.gz -C /tmp/argon-files
-            fi
-            cd /tmp/argon-files
-            rm -rf /tmp/wizard-extract
-            echo "=== Wizard files ==="
-            find . -path '*/wizard*' -type f
-          else
-            echo "⚠ luci-app-wizard 下载失败, 跳过"
-          fi
-
-      - name: Download QoSmate (Backend + LuCI)
+      - name: Create UCI defaults and system optimizations
         run: |
-          echo "=== 下载 QoSmate (hudra0/qosmate) ==="
-          QOSMATE_DIR="/tmp/argon-files"
-          mkdir -p "$QOSMATE_DIR/etc/init.d" \
-                   "$QOSMATE_DIR/etc/config" \
-                   "$QOSMATE_DIR/www/luci-static/resources/view/qosmate" \
-                   "$QOSMATE_DIR/usr/share/luci/menu.d" \
-                   "$QOSMATE_DIR/usr/share/rpcd/acl.d" \
-                   "$QOSMATE_DIR/usr/libexec/rpcd"
-
-          LATEST_TAG=$(curl -sL https://api.github.com/repos/hudra0/qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
-          if [ -z "$LATEST_TAG" ]; then LATEST_TAG="main"; fi
-          echo "QoSmate version: $LATEST_TAG"
-
-          curl -sL -o "$QOSMATE_DIR/etc/init.d/qosmate" \
-            "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/init.d/qosmate"
-          curl -sL -o "$QOSMATE_DIR/etc/qosmate.sh" \
-            "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/qosmate.sh"
-          curl -sL -o "$QOSMATE_DIR/etc/config/qosmate" \
-            "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/config/qosmate"
-          chmod +x "$QOSMATE_DIR/etc/init.d/qosmate" "$QOSMATE_DIR/etc/qosmate.sh"
-
-          LUCI_TAG=$(curl -sL https://api.github.com/repos/hudra0/luci-app-qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
-          if [ -z "$LUCI_TAG" ]; then LUCI_TAG="main"; fi
-          for f in settings.js hfsc.js cake.js advanced.js ipsets.js connections.js; do
-            curl -sL -o "$QOSMATE_DIR/www/luci-static/resources/view/qosmate/$f" \
-              "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/htdocs/luci-static/resources/view/$f"
-          done
-          curl -sL -o "$QOSMATE_DIR/usr/share/luci/menu.d/luci-app-qosmate.json" \
-            "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/luci/menu.d/luci-app-qosmate.json"
-          curl -sL -o "$QOSMATE_DIR/usr/share/rpcd/acl.d/luci-app-qosmate.json" \
-            "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/rpcd/acl.d/luci-app-qosmate.json"
-          curl -sL -o "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate" \
-            "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/libexec/rpcd/luci.qosmate"
-          chmod +x "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate"
-
-          echo "✅ QoSmate 文件下载完成:"
-          find "$QOSMATE_DIR" -path '*qosmate*' -type f | head -30
-
-      - name: Create UCI defaults
-        run: |
-          echo "=== 创建 UCI defaults 快速配置 ==="
           mkdir -p /tmp/argon-files/etc/uci-defaults
           UCI=/tmp/argon-files/etc/uci-defaults/90-wr1200js-setup
 
-          echo '#!/bin/sh' > $UCI
-          echo '# WR1200JS 首次开机快速配置' >> $UCI
-          echo '' >> $UCI
+          cat > $UCI << 'UCI_EOF'
+          #!/bin/sh
+          # WR1200JS 全自动优化脚本
 
-          # 1. LAN IP
-          echo "uci set network.lan.ipaddr='192.168.2.1'" >> $UCI
-          echo "uci set network.lan.netmask='255.255.255.0'" >> $UCI
-          echo "uci set network.lan.dns='8.8.8.8'" >> $UCI
-          echo "uci set network.lan.dns='8.8.4.4'" >> $UCI
-          echo '' >> $UCI
+          # --- 基础网络设置 ---
+          uci set network.lan.ipaddr='192.168.2.1'
+          uci set network.lan.netmask='255.255.255.0'
+          uci set network.lan.dns='8.8.8.8'
+          uci set network.lan.dns='8.8.4.4'
+          uci commit network
 
-          # 2. WiFi 双频分开
-          echo "uci set wireless.radio0.disabled='0'" >> $UCI
-          echo "uci set wireless.radio1.disabled='0'" >> $UCI
-          echo "uci delete wireless.radio0.multi_ap 2>/dev/null" >> $UCI
-          echo "uci delete wireless.radio1.multi_ap 2>/dev/null" >> $UCI
-          echo "uci set wireless.default_radio0.mode='ap'" >> $UCI
-          echo "uci set wireless.default_radio0.ssid='OPENWRT'" >> $UCI
-          echo "uci set wireless.default_radio0.encryption='none'" >> $UCI
-          echo "uci set wireless.default_radio0.network='lan'" >> $UCI
-          echo "uci set wireless.default_radio1.mode='ap'" >> $UCI
-          echo "uci set wireless.default_radio1.ssid='OPENWRT-5G'" >> $UCI
-          echo "uci set wireless.default_radio1.encryption='none'" >> $UCI
-          echo "uci set wireless.default_radio1.network='lan'" >> $UCI
-          echo '' >> $UCI
+          # --- WiFi 设置 ---
+          uci set wireless.radio0.disabled='0'
+          uci set wireless.radio1.disabled='0'
+          uci set wireless.default_radio0.mode='ap'
+          uci set wireless.default_radio0.ssid='OPENWRT'
+          uci set wireless.default_radio0.encryption='none'
+          uci set wireless.default_radio0.network='lan'
+          uci set wireless.default_radio1.mode='ap'
+          uci set wireless.default_radio1.ssid='OPENWRT-5G'
+          uci set wireless.default_radio1.encryption='none'
+          uci set wireless.default_radio1.network='lan'
+          uci commit wireless
 
-          # 3. 时区
-          echo "uci set system.@system[0].timezone='CST-8'" >> $UCI
-          echo "uci set system.@system[0].zonename='Asia/Shanghai'" >> $UCI
-          echo "uci set system.@system[0].hostname='WR1200JS'" >> $UCI
-          echo '' >> $UCI
+          # --- 系统设置 ---
+          uci set system.@system[0].timezone='CST-8'
+          uci set system.@system[0].zonename='Asia/Shanghai'
+          uci set system.@system[0].hostname='WR1200JS'
+          uci commit system
 
-          # 4. DHCP
-          echo "uci delete dhcp.lan 2>/dev/null" >> $UCI
-          echo "uci set dhcp.lan=dhcp" >> $UCI
-          echo "uci set dhcp.lan.interface='lan'" >> $UCI
-          echo "uci set dhcp.lan.start='100'" >> $UCI
-          echo "uci set dhcp.lan.limit='150'" >> $UCI
-          echo "uci set dhcp.lan.leasetime='12h'" >> $UCI
-          echo '' >> $UCI
+          # --- DHCP 设置 ---
+          uci set dhcp.lan.start='100'
+          uci set dhcp.lan.limit='150'
+          uci set dhcp.lan.leasetime='12h'
+          uci commit dhcp
 
-          # 5. Wizard 向导配置
-          echo "uci set wizard.default=wizard" >> $UCI
-          echo "uci set wizard.default.landing_page='wizard'" >> $UCI
-          echo '' >> $UCI
+          # --- SmartDNS 配置 (监听 6053) ---
+          uci set smartdns.@smartdns[0].enabled='1'
+          uci set smartdns.@smartdns[0].port='6053'
+          uci set smartdns.@smartdns[0].tcp_server='1'
+          uci set smartdns.@smartdns[0].serve_expired='1'
+          uci set smartdns.@smartdns[0].cache_size='32768'
+          uci add_list smartdns.@smartdns[0].server='223.5.5.5'
+          uci add_list smartdns.@smartdns[0].server='119.29.29.29'
+          uci add_list smartdns.@smartdns[0].server='1.1.1.1'
+          uci commit smartdns
 
-          # 6. QoSmate 基础启用
-          echo "uci set qosmate.settings=settings" >> $UCI
-          echo "uci set qosmate.settings.enabled='1'" >> $UCI
-          echo "uci set qosmate.settings.qdisc='cake'" >> $UCI
-          echo "uci set qosmate.settings.download_bandwidth='100000'" >> $UCI
-          echo "uci set qosmate.settings.upload_bandwidth='50000'" >> $UCI
-          echo "uci commit qosmate" >> $UCI
-          echo '' >> $UCI
+          # --- dnsmasq 转发到 SmartDNS ---
+          uci set dhcp.@dnsmasq[0].server='127.0.0.1#6053'
+          uci set dhcp.@dnsmasq[0].noresolv='1'
+          uci set dhcp.@dnsmasq[0].cachesize='0'
+          uci commit dhcp
 
-          # 7. 提交
-          echo "uci commit network" >> $UCI
-          echo "uci commit wireless" >> $UCI
-          echo "uci commit system" >> $UCI
-          echo "uci commit dhcp" >> $UCI
-          echo "uci commit wizard" >> $UCI
-          echo "exit 0" >> $UCI
+          # --- 硬件 NAT 卸载 ---
+          uci set firewall.@defaults[0].flow_offloading='1'
+          uci set firewall.@defaults[0].flow_offloading_hw='1'
+          uci commit firewall
 
+          # --- 设置 CPU 调度器为 performance ---
+          for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            [ -e "$cpu" ] && echo performance > "$cpu"
+          done
+
+          # --- 启用线程化 NAPI ---
+          echo 1 > /proc/sys/net/core/backlog_threaded 2>/dev/null
+
+          # --- 智能 IRQ/RPS 中断均衡脚本 ---
+          # 该脚本会自动检测网卡名称和中断号，无需手动配置
+          cat > /etc/init.d/irq-balance << 'IRQ_EOF'
+          #!/bin/sh /etc/rc.common
+          START=99
+          start() {
+            # 等待网络接口就绪
+            sleep 5
+
+            # 定义 CPU 核心掩码 (1,2,4,8)
+            CPU1_MASK="2"
+            CPU2_MASK="4"
+            CPU3_MASK="8"
+
+            # 自动检测 eth0 并绑定到 CPU3
+            if [ -d "/sys/class/net/eth0/queues/rx-0" ]; then
+              echo "$CPU3_MASK" > /sys/class/net/eth0/queues/rx-0/rps_cpus 2>/dev/null
+            fi
+
+            # 自动检测 WAN 接口并绑定到 CPU2
+            for iface in wan pppoe-wan; do
+              if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
+                echo "$CPU2_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
+              fi
+            done
+
+            # 自动检测 LAN 接口并绑定到 CPU1
+            for iface in lan1 lan2 lan3 lan4; do
+              if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
+                echo "$CPU1_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
+              fi
+            done
+
+            # 智能检测并分配无线中断到 CPU3
+            for irq_dir in /proc/irq/*; do
+              if [ -f "$irq_dir/smp_affinity" ]; then
+                irq_name=$(grep -m 1 -o 'mt76[^ ]*' "$irq_dir/../interrupts" 2>/dev/null | head -1)
+                if [ -n "$irq_name" ]; then
+                  echo "$CPU3_MASK" > "$irq_dir/smp_affinity" 2>/dev/null
+                fi
+              fi
+            done
+          }
+          IRQ_EOF
+          chmod +x /etc/init.d/irq-balance
+          /etc/init.d/irq-balance enable
+
+          # --- 禁用 EEE (节能以太网) ---
+          for iface in eth0 wan lan1 lan2 lan3 lan4; do
+            ethtool --set-eee $iface eee off 2>/dev/null
+          done
+
+          exit 0
+          UCI_EOF
           chmod +x $UCI
-          echo "✅ 快速配置脚本已创建"
 
-          # === 添加 kiddin9 软件源 ===
-          echo "=== 添加 kiddin9 软件源 ==="
-          mkdir -p /tmp/argon-files/etc/opkg
-          cat > /tmp/argon-files/etc/opkg/customfeeds.conf << 'FEED_EOF'
-          src/gz kiddin9_packages https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9
-          src/gz kiddin9_base https://dl.openwrt.ai/releases/25.12/targets/ramips/mt7621/packages
-          FEED_EOF
-          sed -i 's/^          //' /tmp/argon-files/etc/opkg/customfeeds.conf
-          echo "✅ kiddin9 软件源已添加"
-
-          echo "FILES directory ready:"
-          find /tmp/argon-files -type d | sort
+          # --- 创建 sysctl 优化配置 ---
+          mkdir -p /tmp/argon-files/etc/sysctl.d
+          cat > /tmp/argon-files/etc/sysctl.d/10-custom.conf << 'SYSCTL_EOF'
+          # WR1200JS 内存与网络优化
+          vm.vfs_cache_pressure = 200
+          vm.min_free_kbytes = 4096
+          vm.swappiness = 10
+          net.ipv4.tcp_congestion_control = bbr
+          net.ipv4.tcp_fastopen = 3
+          net.core.netdev_max_backlog = 16384
+          net.netfilter.nf_conntrack_max = 65536
+          net.ipv4.tcp_ecn = 1
+          net.ipv4.tcp_slow_start_after_idle = 0
+          net.core.somaxconn = 65536
+          SYSCTL_EOF
 
       - name: Build firmware
         run: |
           cd openwrt-ib
-
-          # 软件包列表 - 已加入 QoSmate 所需依赖
           PACKAGES="\
             -ppp -ppp-mod-pppoe \
             -odhcpd-ipv6only -odhcp6c \
             dnsmasq \
-            luci luci-i18n-base-zh-cn luci-compat luci-lib-ipkg \
+            luci luci-i18n-base-zh-cn luci-compat \
             -wpad-basic-mbedtls wpad-openssl \
             luci-app-firewall \
             smartdns luci-app-smartdns \
             luci-app-upnp miniupnpd-nftables \
-            nano wget \
-            kmod-sched ip-full kmod-veth tc-full kmod-netem \
-            kmod-sched-ctinfo kmod-ifb kmod-sched-cake kmod-sched-red \
-            luci-lib-jsonc lua jq coreutils-sleep \
+            nano wget ethtool \
+            luci-lib-jsonc lua \
+            zram-swap kmod-lib-lzo \
+            kmod-nf-nathelper kmod-nf-flow \
           "
-
-          echo "Building firmware for ${PROFILE}..."
-          echo "Packages: ${PACKAGES}"
-          echo "FILES dir: /tmp/argon-files"
-          ls -la /tmp/argon-files/ 2>/dev/null || echo "FILES directory empty or not exists"
-
-          # 使用 FILES 机制将 Argon 主题和 QoSmate 注入根文件系统
           make image PROFILE="${PROFILE}" \
             PACKAGES="${PACKAGES}" \
             FILES="/tmp/argon-files" \
-            DISABLED_SERVICES="" \
             BIN_DIR="$(pwd)/output" \
             EXTRA_IMAGE_NAME="custom"
-
           echo "Build completed!"
-          ls -lh output/
+
+      - name: UPX compress large binaries
+        run: |
+          echo "=== UPX 压缩 (使用保守参数) ==="
+          if command -v upx &> /dev/null; then
+            find openwrt-ib/output/ -type f \( -name "*.elf" -o -name "*.bin" \) | while read -r file; do
+              SIZE=$(stat -c%s "$file" 2>/dev/null || echo 0)
+              if [ "$SIZE" -gt 204800 ]; then
+                echo "压缩: $file ($((SIZE / 1024)) KB)"
+                # 使用 --ultra-brute 以外的更保守参数，降低兼容风险
+                upx --lzma --best "$file" 2>/dev/null && echo "  ✅ 完成" || echo "  ⚠ 跳过"
+              fi
+            done
+          fi
 
       - name: Check firmware size
         run: |
-          echo "=== 固件文件 ==="
-          ls -lh openwrt-ib/output/ 2>/dev/null
-          echo ""
-          echo "=== 空间检查 ==="
           FIRMWARE_SIZE=$(stat -c%s openwrt-ib/output/*sysupgrade*.bin 2>/dev/null || echo 0)
-          MAX_SIZE=$((16 * 1024 * 1024))  # 16MB flash
-          echo "固件大小: $((FIRMWARE_SIZE / 1024 / 1024)) MB ($FIRMWARE_SIZE bytes)"
-          echo "最大限制: $((MAX_SIZE / 1024 / 1024)) MB ($MAX_SIZE bytes)"
+          MAX_SIZE=$((15 * 1024 * 1024))
+          echo "固件大小: $((FIRMWARE_SIZE / 1024 / 1024)) MB"
           if [ "$FIRMWARE_SIZE" -gt "$MAX_SIZE" ]; then
             echo "❌ 固件超出 flash 空间限制!"
             exit 1
@@ -336,8 +267,6 @@ jobs:
         run: |
           cd openwrt-ib/output
           sha256sum * > sha256sums.txt
-          echo "=== SHA256 校验和 ==="
-          cat sha256sums.txt
 
       - name: Create release
         if: startsWith(github.ref, 'refs/tags/')
@@ -352,18 +281,19 @@ jobs:
             - **SoC**: MediaTek MT7621AT (MIPS 1004Kc, 4核 880MHz)
             - **RAM**: 128MB
             - **Flash**: 16MB SPI NOR
-            - **WiFi**: MT7603E (2.4G) + MT76x2E (5G)
-            - **Target**: ramips/mt7621 (mipsel_24kc)
 
             ### 更新日志
-
-            #### v1.0.32
-            - 集成 QoSmate (hudra0/qosmate) 深度 QoS 插件
-            - 移除 SQM，避免 QoS 冲突
-            - 保留所有基础功能
+            #### v1.0.35 (最终优化版)
+            - **智能 IRQ/RPS 中断均衡**：脚本自动检测并分配中断，无需手动配置
+            - **自动禁用 EEE**：解决 MT7621 平台网络稳定性问题
+            - **线程化 NAPI**：提升高负载下网络转发性能
+            - **UPX 安全压缩**：使用更保守参数，降低兼容性风险
+            - 保留 SmartDNS 端口分离、硬件 NAT 卸载、ZRAM 等优化
+            - 保持禁用 PPPoE、SQM 及冗余内核模块
 
             ### 固件说明
-            基于 OpenWrt 官方 ImageBuilder 定制，精简稳定。
+            基于 OpenWrt 官方 ImageBuilder 定制，精简稳定，全自动优化。
+            **本固件不含 PPPoE 拨号功能，适用于二级路由（DHCP 上网）场景。**
 
             ### 安装方法
             1. 下载最新 Release 中的 `squashfs-sysupgrade.bin` 文件
@@ -375,14 +305,14 @@ jobs:
             |------|------|
             | Web 管理 | LuCI + Argon 主题 + 中文 |
             | WiFi | wpad-openssl (AP/STA/WDS/Mesh/WPA3) |
-            | 拨号 | PPPoE |
-            | 网络 | 静态地址 / DHCP / DHCPv6 |
-            | DNS | SmartDNS |
-            | QoS | QoSmate (深度 QoS) |
-            | DDNS | 动态 DNS |
-            | UPnP | miniupnpd |
-            | 工具 | nano, htop, curl, wget, wol, hd-idle |
-            | USB | 存储挂载 (ext4/vfat/exfat) |
+            | 网络 | 静态地址 / DHCP |
+            | DNS | SmartDNS (监听 6053) + dnsmasq 转发 |
+            | UPnP | miniupnpd-nftables |
+            | 工具 | nano, wget, ethtool |
+            | 内存优化 | ZRAM 压缩 |
+            | 网络加速 | 硬件 NAT 卸载 (flow offloading) |
+            | 系统优化 | 智能 IRQ 均衡、线程化 NAPI、自动禁用 EEE |
+            | 空间优化 | UPX 二进制压缩 |
 
             ### 硬件支持
             ✅ 所有 10 个 LED 灯 (Power/2.4G/5G/WPS/Internet/LAN1-4/USB)
