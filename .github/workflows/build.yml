@@ -236,6 +236,7 @@ jobs:
             dnsmasq \
             luci luci-i18n-base-zh-cn luci-compat luci-lib-ipkg \
             -wpad-basic-mbedtls wpad-openssl \
+            luci-app-firewall \
             smartdns luci-app-smartdns \
             luci-app-upnp miniupnpd-nftables \
             nano wget \
