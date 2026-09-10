@@ -148,6 +148,46 @@ jobs:
             echo "⚠ luci-app-wizard 下载失败, 跳过"
           fi
 
+      - name: Download QoSmate (Backend + LuCI)
+  run: |
+    echo "=== 下载 QoSmate (hudra0/qosmate) ==="
+    QOSMATE_DIR="/tmp/argon-files"
+    mkdir -p "$QOSMATE_DIR/etc/init.d" \
+             "$QOSMATE_DIR/etc/config" \
+             "$QOSMATE_DIR/www/luci-static/resources/view/qosmate" \
+             "$QOSMATE_DIR/usr/share/luci/menu.d" \
+             "$QOSMATE_DIR/usr/share/rpcd/acl.d" \
+             "$QOSMATE_DIR/usr/libexec/rpcd"
+
+    LATEST_TAG=$(curl -sL https://api.github.com/repos/hudra0/qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
+    if [ -z "$LATEST_TAG" ]; then LATEST_TAG="main"; fi
+    echo "QoSmate version: $LATEST_TAG"
+
+    curl -sL -o "$QOSMATE_DIR/etc/init.d/qosmate" \
+      "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/init.d/qosmate"
+    curl -sL -o "$QOSMATE_DIR/etc/qosmate.sh" \
+      "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/qosmate.sh"
+    curl -sL -o "$QOSMATE_DIR/etc/config/qosmate" \
+      "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/config/qosmate"
+    chmod +x "$QOSMATE_DIR/etc/init.d/qosmate" "$QOSMATE_DIR/etc/qosmate.sh"
+
+    LUCI_TAG=$(curl -sL https://api.github.com/repos/hudra0/luci-app-qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
+    if [ -z "$LUCI_TAG" ]; then LUCI_TAG="main"; fi
+    for f in settings.js hfsc.js cake.js advanced.js ipsets.js connections.js; do
+      curl -sL -o "$QOSMATE_DIR/www/luci-static/resources/view/qosmate/$f" \
+        "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/htdocs/luci-static/resources/view/$f"
+    done
+    curl -sL -o "$QOSMATE_DIR/usr/share/luci/menu.d/luci-app-qosmate.json" \
+      "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/luci/menu.d/luci-app-qosmate.json"
+    curl -sL -o "$QOSMATE_DIR/usr/share/rpcd/acl.d/luci-app-qosmate.json" \
+      "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/rpcd/acl.d/luci-app-qosmate.json"
+    curl -sL -o "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate" \
+      "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/libexec/rpcd/luci.qosmate"
+    chmod +x "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate"
+
+    echo "✅ QoSmate 文件下载完成:"
+    find "$QOSMATE_DIR" -path '*qosmate*' -type f | head -30
+      
       - name: Create UCI defaults
         run: |
           echo "=== 创建 UCI defaults 快速配置 ==="
@@ -240,6 +280,9 @@ jobs:
             smartdns luci-app-smartdns \
             luci-app-upnp miniupnpd-nftables \
             nano wget \
+            kmod-sched ip-full kmod-veth tc-full kmod-netem \
+            kmod-sched-ctinfo kmod-ifb kmod-sched-cake kmod-sched-red \
+            luci-lib-jsonc lua jq coreutils-sleep \
           "
 
           echo "Building firmware for ${PROFILE}..."
