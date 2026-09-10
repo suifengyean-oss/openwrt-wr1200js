@@ -141,153 +141,145 @@ jobs:
         run: |
           echo "=== 创建 UCI defaults 快速配置 ==="
           mkdir -p /tmp/argon-files/etc/uci-defaults
-          UCI=/tmp/argon-files/etc/uci-defaults/90-wr1200js-setup
-
-          echo '#!/bin/sh' > $UCI
-          echo '# WR1200JS 首次开机快速配置' >> $UCI
-          echo '' >> $UCI
+          
+          cat > /tmp/argon-files/etc/uci-defaults/90-wr1200js-setup << 'UCI_EOF'
+          #!/bin/sh
+          # WR1200JS 首次开机快速配置
 
           # 1. LAN IP
-          echo "uci set network.lan.ipaddr='192.168.2.1'" >> $UCI
-          echo "uci set network.lan.netmask='255.255.255.0'" >> $UCI
-          echo "uci set network.lan.dns='8.8.8.8'" >> $UCI
-          echo "uci set network.lan.dns='8.8.4.4'" >> $UCI
-          echo '' >> $UCI
+          uci set network.lan.ipaddr='192.168.2.1'
+          uci set network.lan.netmask='255.255.255.0'
+          uci set network.lan.dns='8.8.8.8'
+          uci set network.lan.dns='8.8.4.4'
 
           # 2. WiFi 双频分开
-          echo "uci set wireless.radio0.disabled='0'" >> $UCI
-          echo "uci set wireless.radio1.disabled='0'" >> $UCI
-          echo "uci delete wireless.radio0.multi_ap 2>/dev/null" >> $UCI
-          echo "uci delete wireless.radio1.multi_ap 2>/dev/null" >> $UCI
-          echo "uci set wireless.default_radio0.mode='ap'" >> $UCI
-          echo "uci set wireless.default_radio0.ssid='OPENWRT'" >> $UCI
-          echo "uci set wireless.default_radio0.encryption='none'" >> $UCI
-          echo "uci set wireless.default_radio0.network='lan'" >> $UCI
-          echo "uci set wireless.default_radio1.mode='ap'" >> $UCI
-          echo "uci set wireless.default_radio1.ssid='OPENWRT-5G'" >> $UCI
-          echo "uci set wireless.default_radio1.encryption='none'" >> $UCI
-          echo "uci set wireless.default_radio1.network='lan'" >> $UCI
-          echo '' >> $UCI
+          uci set wireless.radio0.disabled='0'
+          uci set wireless.radio1.disabled='0'
+          uci delete wireless.radio0.multi_ap 2>/dev/null
+          uci delete wireless.radio1.multi_ap 2>/dev/null
+          uci set wireless.default_radio0.mode='ap'
+          uci set wireless.default_radio0.ssid='OPENWRT'
+          uci set wireless.default_radio0.encryption='none'
+          uci set wireless.default_radio0.network='lan'
+          uci set wireless.default_radio1.mode='ap'
+          uci set wireless.default_radio1.ssid='OPENWRT-5G'
+          uci set wireless.default_radio1.encryption='none'
+          uci set wireless.default_radio1.network='lan'
 
           # 3. 时区
-          echo "uci set system.@system[0].timezone='CST-8'" >> $UCI
-          echo "uci set system.@system[0].zonename='Asia/Shanghai'" >> $UCI
-          echo "uci set system.@system[0].hostname='WR1200JS'" >> $UCI
-          echo '' >> $UCI
+          uci set system.@system[0].timezone='CST-8'
+          uci set system.@system[0].zonename='Asia/Shanghai'
+          uci set system.@system[0].hostname='WR1200JS'
 
           # 4. DHCP
-          echo "uci delete dhcp.lan 2>/dev/null" >> $UCI
-          echo "uci set dhcp.lan=dhcp" >> $UCI
-          echo "uci set dhcp.lan.interface='lan'" >> $UCI
-          echo "uci set dhcp.lan.start='100'" >> $UCI
-          echo "uci set dhcp.lan.limit='150'" >> $UCI
-          echo "uci set dhcp.lan.leasetime='12h'" >> $UCI
-          echo '' >> $UCI
+          uci delete dhcp.lan 2>/dev/null
+          uci set dhcp.lan=dhcp
+          uci set dhcp.lan.interface='lan'
+          uci set dhcp.lan.start='100'
+          uci set dhcp.lan.limit='150'
+          uci set dhcp.lan.leasetime='12h'
 
           # 5. Wizard 向导配置
-          echo "uci set wizard.default=wizard" >> $UCI
-          echo "uci set wizard.default.landing_page='wizard'" >> $UCI
-          echo '' >> $UCI
+          uci set wizard.default=wizard
+          uci set wizard.default.landing_page='wizard'
 
           # 6. SmartDNS 配置 (监听 6053，避免与 dnsmasq 冲突)
-          echo "# SmartDNS 配置" >> $UCI
-          echo "uci set smartdns.@smartdns[0].enabled='1' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].port='6053' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].tcp_server='1' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].ipv6_server='0' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].dualstack_ip_selection='1' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].serve_expired='1' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].cache_size='32768' 2>/dev/null" >> $UCI
-          echo "uci set smartdns.@smartdns[0].rr_ttl_min='300' 2>/dev/null" >> $UCI
-          echo "uci -q delete smartdns.@smartdns[0].server 2>/dev/null" >> $UCI
-          echo "uci add_list smartdns.@smartdns[0].server='223.5.5.5' 2>/dev/null" >> $UCI
-          echo "uci add_list smartdns.@smartdns[0].server='119.29.29.29' 2>/dev/null" >> $UCI
-          echo "uci add_list smartdns.@smartdns[0].server='180.184.1.1' 2>/dev/null" >> $UCI
-          echo "uci add_list smartdns.@smartdns[0].server='1.1.1.1' 2>/dev/null" >> $UCI
-          echo "uci commit smartdns 2>/dev/null" >> $UCI
-          echo '' >> $UCI
+          uci set smartdns.@smartdns[0].enabled='1'
+          uci set smartdns.@smartdns[0].port='6053'
+          uci set smartdns.@smartdns[0].tcp_server='1'
+          uci set smartdns.@smartdns[0].ipv6_server='0'
+          uci set smartdns.@smartdns[0].dualstack_ip_selection='1'
+          uci set smartdns.@smartdns[0].serve_expired='1'
+          uci set smartdns.@smartdns[0].cache_size='32768'
+          uci set smartdns.@smartdns[0].rr_ttl_min='300'
+          uci -q delete smartdns.@smartdns[0].server
+          uci add_list smartdns.@smartdns[0].server='223.5.5.5'
+          uci add_list smartdns.@smartdns[0].server='119.29.29.29'
+          uci add_list smartdns.@smartdns[0].server='180.184.1.1'
+          uci add_list smartdns.@smartdns[0].server='1.1.1.1'
+          uci commit smartdns
 
           # 7. dnsmasq 转发 DNS 到 SmartDNS (127.0.0.1:6053)
-          echo "# dnsmasq 转发到 SmartDNS" >> $UCI
-          echo "uci set dhcp.@dnsmasq[0].server='127.0.0.1#6053'" >> $UCI
-          echo "uci set dhcp.@dnsmasq[0].noresolv='1'" >> $UCI
-          echo "uci set dhcp.@dnsmasq[0].cachesize='0'" >> $UCI
-          echo "uci commit dhcp" >> $UCI
-          echo '' >> $UCI
+          uci set dhcp.@dnsmasq[0].server='127.0.0.1#6053'
+          uci set dhcp.@dnsmasq[0].noresolv='1'
+          uci set dhcp.@dnsmasq[0].cachesize='0'
+          uci commit dhcp
 
           # 8. 启用硬件 NAT 卸载 (flow offloading)
-          echo "# 启用硬件 NAT 卸载" >> $UCI
-          echo "uci set firewall.@defaults[0].flow_offloading='1'" >> $UCI
-          echo "uci set firewall.@defaults[0].flow_offloading_hw='1'" >> $UCI
-          echo "uci commit firewall" >> $UCI
-          echo '' >> $UCI
+          uci set firewall.@defaults[0].flow_offloading='1'
+          uci set firewall.@defaults[0].flow_offloading_hw='1'
+          uci commit firewall
 
           # 9. 系统优化：CPU 调度器设为 performance
-          echo "# 设置 CPU 调度器为 performance" >> $UCI
-          echo "for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do" >> $UCI
-          echo "  [ -e \"\$cpu\" ] && echo performance > \"\$cpu\"" >> $UCI
-          echo "done" >> $UCI
-          echo '' >> $UCI
+          for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            [ -e "$cpu" ] && echo performance > "$cpu"
+          done
 
           # 10. 启用 irq-balance 服务
-          echo "# 启用 irq-balance 服务" >> $UCI
-          echo "/etc/init.d/irq-balance enable" >> $UCI
-          echo '' >> $UCI
+          /etc/init.d/irq-balance enable
 
           # 11. 提交
-          echo "uci commit network" >> $UCI
-          echo "uci commit wireless" >> $UCI
-          echo "uci commit system" >> $UCI
-          echo "uci commit wizard" >> $UCI
-          echo "exit 0" >> $UCI
-
-          chmod +x $UCI
+          uci commit network
+          uci commit wireless
+          uci commit system
+          uci commit wizard
+          exit 0
+          UCI_EOF
+          
+          chmod +x /tmp/argon-files/etc/uci-defaults/90-wr1200js-setup
           echo "✅ 快速配置脚本已创建"
 
           # === 创建 IRQ 自动均衡脚本 ===
           echo "=== 创建 IRQ 自动均衡脚本 ==="
           mkdir -p /tmp/argon-files/etc/init.d
           cat > /tmp/argon-files/etc/init.d/irq-balance << 'IRQ_EOF'
-#!/bin/sh /etc/rc.common
-START=99
-start() {
-    sleep 5
-    CPU1_MASK="2"
-    CPU2_MASK="4"
-    CPU3_MASK="8"
-    # eth0 -> CPU3
-    if [ -d "/sys/class/net/eth0/queues/rx-0" ]; then
-        echo "$CPU3_MASK" > /sys/class/net/eth0/queues/rx-0/rps_cpus 2>/dev/null
-    fi
-    # WAN -> CPU2
-    for iface in wan pppoe-wan; do
-        if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
-            echo "$CPU2_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
-        fi
-    done
-    # LAN -> CPU1
-    for iface in lan1 lan2 lan3 lan4; do
-        if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
-            echo "$CPU1_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
-        fi
-    done
-    # 无线中断 -> CPU3
-    for irq_dir in /proc/irq/*; do
-        if [ -f "$irq_dir/smp_affinity" ]; then
-            irq_name=$(grep -m 1 -o 'mt76[^ ]*' "$irq_dir/../interrupts" 2>/dev/null | head -1)
-            if [ -n "$irq_name" ]; then
-                echo "$CPU3_MASK" > "$irq_dir/smp_affinity" 2>/dev/null
-            fi
-        fi
-    done
-    # 禁用 EEE
-    for iface in eth0 wan lan1 lan2 lan3 lan4; do
-        ethtool --set-eee $iface eee off 2>/dev/null
-    done
-    # 启用线程化 NAPI
-    echo 1 > /proc/sys/net/core/backlog_threaded 2>/dev/null
-}
-IRQ_EOF
+          #!/bin/sh /etc/rc.common
+          START=99
+          start() {
+              sleep 5
+              CPU1_MASK="2"
+              CPU2_MASK="4"
+              CPU3_MASK="8"
+              
+              # eth0 -> CPU3
+              if [ -d "/sys/class/net/eth0/queues/rx-0" ]; then
+                  echo "$CPU3_MASK" > /sys/class/net/eth0/queues/rx-0/rps_cpus 2>/dev/null
+              fi
+              
+              # WAN -> CPU2
+              for iface in wan pppoe-wan; do
+                  if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
+                      echo "$CPU2_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
+                  fi
+              done
+              
+              # LAN -> CPU1
+              for iface in lan1 lan2 lan3 lan4; do
+                  if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
+                      echo "$CPU1_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
+                  fi
+              done
+              
+              # 无线中断 -> CPU3
+              for irq_dir in /proc/irq/*; do
+                  if [ -f "$irq_dir/smp_affinity" ]; then
+                      irq_name=$(grep -m 1 -o 'mt76[^ ]*' "$irq_dir/../interrupts" 2>/dev/null | head -1)
+                      if [ -n "$irq_name" ]; then
+                          echo "$CPU3_MASK" > "$irq_dir/smp_affinity" 2>/dev/null
+                      fi
+                  fi
+              done
+              
+              # 禁用 EEE
+              for iface in eth0 wan lan1 lan2 lan3 lan4; do
+                  ethtool --set-eee $iface eee off 2>/dev/null
+              done
+              
+              # 启用线程化 NAPI
+              echo 1 > /proc/sys/net/core/backlog_threaded 2>/dev/null
+          }
+          IRQ_EOF
+          
           chmod +x /tmp/argon-files/etc/init.d/irq-balance
           echo "✅ IRQ 自动均衡脚本已创建"
 
@@ -295,27 +287,27 @@ IRQ_EOF
           echo "=== 创建 sysctl 优化配置 ==="
           mkdir -p /tmp/argon-files/etc/sysctl.d
           cat > /tmp/argon-files/etc/sysctl.d/10-custom.conf << 'SYSCTL_EOF'
-# WR1200JS 内存与网络优化
-vm.vfs_cache_pressure = 200
-vm.min_free_kbytes = 4096
-vm.swappiness = 10
-net.ipv4.tcp_congestion_control = bbr
-net.ipv4.tcp_fastopen = 3
-net.core.netdev_max_backlog = 16384
-net.netfilter.nf_conntrack_max = 65536
-net.ipv4.tcp_ecn = 1
-net.ipv4.tcp_slow_start_after_idle = 0
-net.core.somaxconn = 65536
-SYSCTL_EOF
+          # WR1200JS 内存与网络优化
+          vm.vfs_cache_pressure = 200
+          vm.min_free_kbytes = 4096
+          vm.swappiness = 10
+          net.ipv4.tcp_congestion_control = bbr
+          net.ipv4.tcp_fastopen = 3
+          net.core.netdev_max_backlog = 16384
+          net.netfilter.nf_conntrack_max = 65536
+          net.ipv4.tcp_ecn = 1
+          net.ipv4.tcp_slow_start_after_idle = 0
+          net.core.somaxconn = 65536
+          SYSCTL_EOF
           echo "✅ sysctl 优化配置已创建"
 
           # === 添加 kiddin9 软件源 (后续插件安装) ===
           echo "=== 添加 kiddin9 软件源 ==="
           mkdir -p /tmp/argon-files/etc/opkg
           cat > /tmp/argon-files/etc/opkg/customfeeds.conf << 'FEED_EOF'
-src/gz kiddin9_packages https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9
-src/gz kiddin9_base https://dl.openwrt.ai/releases/25.12/targets/ramips/mt7621/packages
-FEED_EOF
+          src/gz kiddin9_packages https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9
+          src/gz kiddin9_base https://dl.openwrt.ai/releases/25.12/targets/ramips/mt7621/packages
+          FEED_EOF
           echo "✅ kiddin9 软件源已添加"
 
           echo "FILES directory ready:"
@@ -413,7 +405,6 @@ FEED_EOF
             - **Target**: ramips/mt7621 (mipsel_24kc)
 
             ### 更新日志
-
             #### v1.0.36 (最终优化版)
             - **智能 IRQ/RPS 中断均衡**：自动检测网卡与中断，无需手动配置
             - **自动禁用 EEE**：解决 MT7621 平台网络稳定性问题
