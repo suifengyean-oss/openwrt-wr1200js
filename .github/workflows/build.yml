@@ -1,4 +1,4 @@
-name: Build OpenWrt for WR1200JS - Final Optimized
+name: Build OpenWrt for WR1200JS
 
 on:
   workflow_dispatch:
@@ -316,6 +316,7 @@ jobs:
       - name: Build firmware
         run: |
           cd openwrt-ib
+          # 注意：这里显式加入了无线驱动，避免因覆盖 PACKAGES 导致驱动丢失
           PACKAGES="\
             -ppp -ppp-mod-pppoe \
             -odhcpd-ipv6only -odhcp6c \
@@ -323,6 +324,7 @@ jobs:
             luci luci-i18n-base-zh-cn luci-compat \
             -wpad-basic-mbedtls wpad-openssl \
             luci-app-firewall \
+            kmod-mt7603e kmod-mt76x2e wireless-regdb iwinfo \
             smartdns luci-app-smartdns \
             luci-app-upnp miniupnpd-nftables \
             nano wget ethtool \
@@ -405,7 +407,8 @@ jobs:
             - **Target**: ramips/mt7621 (mipsel_24kc)
 
             ### 更新日志
-            #### v1.0.36 (最终优化版)
+            #### v1.0.37 (最终优化版)
+            - **修复无线功能**：显式加入 `kmod-mt7603e` (2.4G)、`kmod-mt76x2e` (5G) 和 `wireless-regdb` 驱动
             - **智能 IRQ/RPS 中断均衡**：自动检测网卡与中断，无需手动配置
             - **自动禁用 EEE**：解决 MT7621 平台网络稳定性问题
             - **线程化 NAPI**：提升高负载下网络转发性能
@@ -429,7 +432,7 @@ jobs:
             | 分类 | 软件 |
             |------|------|
             | Web 管理 | LuCI + Argon 主题 + 中文 + Wizard |
-            | WiFi | wpad-openssl (AP/STA/WDS/Mesh/WPA3) |
+            | WiFi | wpad-openssl + MT7603E + MT76x2E 驱动 |
             | 网络 | 静态地址 / DHCP |
             | DNS | SmartDNS (监听 6053) + dnsmasq 转发 |
             | UPnP | miniupnpd-nftables |
