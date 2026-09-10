@@ -149,45 +149,45 @@ jobs:
           fi
 
       - name: Download QoSmate (Backend + LuCI)
-  run: |
-    echo "=== 下载 QoSmate (hudra0/qosmate) ==="
-    QOSMATE_DIR="/tmp/argon-files"
-    mkdir -p "$QOSMATE_DIR/etc/init.d" \
-             "$QOSMATE_DIR/etc/config" \
-             "$QOSMATE_DIR/www/luci-static/resources/view/qosmate" \
-             "$QOSMATE_DIR/usr/share/luci/menu.d" \
-             "$QOSMATE_DIR/usr/share/rpcd/acl.d" \
-             "$QOSMATE_DIR/usr/libexec/rpcd"
+        run: |
+          echo "=== 下载 QoSmate (hudra0/qosmate) ==="
+          QOSMATE_DIR="/tmp/argon-files"
+          mkdir -p "$QOSMATE_DIR/etc/init.d" \
+                   "$QOSMATE_DIR/etc/config" \
+                   "$QOSMATE_DIR/www/luci-static/resources/view/qosmate" \
+                   "$QOSMATE_DIR/usr/share/luci/menu.d" \
+                   "$QOSMATE_DIR/usr/share/rpcd/acl.d" \
+                   "$QOSMATE_DIR/usr/libexec/rpcd"
 
-    LATEST_TAG=$(curl -sL https://api.github.com/repos/hudra0/qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
-    if [ -z "$LATEST_TAG" ]; then LATEST_TAG="main"; fi
-    echo "QoSmate version: $LATEST_TAG"
+          LATEST_TAG=$(curl -sL https://api.github.com/repos/hudra0/qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
+          if [ -z "$LATEST_TAG" ]; then LATEST_TAG="main"; fi
+          echo "QoSmate version: $LATEST_TAG"
 
-    curl -sL -o "$QOSMATE_DIR/etc/init.d/qosmate" \
-      "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/init.d/qosmate"
-    curl -sL -o "$QOSMATE_DIR/etc/qosmate.sh" \
-      "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/qosmate.sh"
-    curl -sL -o "$QOSMATE_DIR/etc/config/qosmate" \
-      "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/config/qosmate"
-    chmod +x "$QOSMATE_DIR/etc/init.d/qosmate" "$QOSMATE_DIR/etc/qosmate.sh"
+          curl -sL -o "$QOSMATE_DIR/etc/init.d/qosmate" \
+            "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/init.d/qosmate"
+          curl -sL -o "$QOSMATE_DIR/etc/qosmate.sh" \
+            "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/qosmate.sh"
+          curl -sL -o "$QOSMATE_DIR/etc/config/qosmate" \
+            "https://raw.githubusercontent.com/hudra0/qosmate/$LATEST_TAG/etc/config/qosmate"
+          chmod +x "$QOSMATE_DIR/etc/init.d/qosmate" "$QOSMATE_DIR/etc/qosmate.sh"
 
-    LUCI_TAG=$(curl -sL https://api.github.com/repos/hudra0/luci-app-qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
-    if [ -z "$LUCI_TAG" ]; then LUCI_TAG="main"; fi
-    for f in settings.js hfsc.js cake.js advanced.js ipsets.js connections.js; do
-      curl -sL -o "$QOSMATE_DIR/www/luci-static/resources/view/qosmate/$f" \
-        "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/htdocs/luci-static/resources/view/$f"
-    done
-    curl -sL -o "$QOSMATE_DIR/usr/share/luci/menu.d/luci-app-qosmate.json" \
-      "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/luci/menu.d/luci-app-qosmate.json"
-    curl -sL -o "$QOSMATE_DIR/usr/share/rpcd/acl.d/luci-app-qosmate.json" \
-      "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/rpcd/acl.d/luci-app-qosmate.json"
-    curl -sL -o "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate" \
-      "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/libexec/rpcd/luci.qosmate"
-    chmod +x "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate"
+          LUCI_TAG=$(curl -sL https://api.github.com/repos/hudra0/luci-app-qosmate/releases/latest | grep -o '"tag_name":"[^"]*' | sed 's/"tag_name":"//')
+          if [ -z "$LUCI_TAG" ]; then LUCI_TAG="main"; fi
+          for f in settings.js hfsc.js cake.js advanced.js ipsets.js connections.js; do
+            curl -sL -o "$QOSMATE_DIR/www/luci-static/resources/view/qosmate/$f" \
+              "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/htdocs/luci-static/resources/view/$f"
+          done
+          curl -sL -o "$QOSMATE_DIR/usr/share/luci/menu.d/luci-app-qosmate.json" \
+            "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/luci/menu.d/luci-app-qosmate.json"
+          curl -sL -o "$QOSMATE_DIR/usr/share/rpcd/acl.d/luci-app-qosmate.json" \
+            "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/share/rpcd/acl.d/luci-app-qosmate.json"
+          curl -sL -o "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate" \
+            "https://raw.githubusercontent.com/hudra0/luci-app-qosmate/$LUCI_TAG/root/usr/libexec/rpcd/luci.qosmate"
+          chmod +x "$QOSMATE_DIR/usr/libexec/rpcd/luci.qosmate"
 
-    echo "✅ QoSmate 文件下载完成:"
-    find "$QOSMATE_DIR" -path '*qosmate*' -type f | head -30
-      
+          echo "✅ QoSmate 文件下载完成:"
+          find "$QOSMATE_DIR" -path '*qosmate*' -type f | head -30
+
       - name: Create UCI defaults
         run: |
           echo "=== 创建 UCI defaults 快速配置 ==="
@@ -240,7 +240,16 @@ jobs:
           echo "uci set wizard.default.landing_page='wizard'" >> $UCI
           echo '' >> $UCI
 
-          # 6. 提交
+          # 6. QoSmate 基础启用
+          echo "uci set qosmate.settings=settings" >> $UCI
+          echo "uci set qosmate.settings.enabled='1'" >> $UCI
+          echo "uci set qosmate.settings.qdisc='cake'" >> $UCI
+          echo "uci set qosmate.settings.download_bandwidth='100000'" >> $UCI
+          echo "uci set qosmate.settings.upload_bandwidth='50000'" >> $UCI
+          echo "uci commit qosmate" >> $UCI
+          echo '' >> $UCI
+
+          # 7. 提交
           echo "uci commit network" >> $UCI
           echo "uci commit wireless" >> $UCI
           echo "uci commit system" >> $UCI
@@ -251,14 +260,13 @@ jobs:
           chmod +x $UCI
           echo "✅ 快速配置脚本已创建"
 
-          # === 添加 kiddin9 软件源 (后续插件安装) ===
+          # === 添加 kiddin9 软件源 ===
           echo "=== 添加 kiddin9 软件源 ==="
           mkdir -p /tmp/argon-files/etc/opkg
           cat > /tmp/argon-files/etc/opkg/customfeeds.conf << 'FEED_EOF'
           src/gz kiddin9_packages https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9
           src/gz kiddin9_base https://dl.openwrt.ai/releases/25.12/targets/ramips/mt7621/packages
           FEED_EOF
-          # 移除行首空格 (heredoc 缩进导致的问题)
           sed -i 's/^          //' /tmp/argon-files/etc/opkg/customfeeds.conf
           echo "✅ kiddin9 软件源已添加"
 
@@ -269,7 +277,7 @@ jobs:
         run: |
           cd openwrt-ib
 
-          # 软件包列表 - 精简以适配 16MB flash
+          # 软件包列表 - 已加入 QoSmate 所需依赖
           PACKAGES="\
             -ppp -ppp-mod-pppoe \
             -odhcpd-ipv6only -odhcp6c \
@@ -290,7 +298,7 @@ jobs:
           echo "FILES dir: /tmp/argon-files"
           ls -la /tmp/argon-files/ 2>/dev/null || echo "FILES directory empty or not exists"
 
-          # 使用 FILES 机制将 Argon 主题注入根文件系统
+          # 使用 FILES 机制将 Argon 主题和 QoSmate 注入根文件系统
           make image PROFILE="${PROFILE}" \
             PACKAGES="${PACKAGES}" \
             FILES="/tmp/argon-files" \
@@ -349,9 +357,10 @@ jobs:
 
             ### 更新日志
 
-            #### v1.0.31
-            - 移除 frpc，精简固件体积
-            - 保留所有基础功能：WiFi、PPPoE、SmartDNS、SQM、DDNS、UPnP 等
+            #### v1.0.32
+            - 集成 QoSmate (hudra0/qosmate) 深度 QoS 插件
+            - 移除 SQM，避免 QoS 冲突
+            - 保留所有基础功能
 
             ### 固件说明
             基于 OpenWrt 官方 ImageBuilder 定制，精简稳定。
@@ -369,7 +378,7 @@ jobs:
             | 拨号 | PPPoE |
             | 网络 | 静态地址 / DHCP / DHCPv6 |
             | DNS | SmartDNS |
-            | QoS | SQM (抗缓冲膨胀) |
+            | QoS | QoSmate (深度 QoS) |
             | DDNS | 动态 DNS |
             | UPnP | miniupnpd |
             | 工具 | nano, htop, curl, wget, wol, hd-idle |
