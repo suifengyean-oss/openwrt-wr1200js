@@ -231,7 +231,9 @@ jobs:
 
           # 软件包列表 - 精简以适配 16MB flash
           PACKAGES="\
-            -dnsmasq -ppp -ppp-mod-pppoe \
+            -ppp -ppp-mod-pppoe \
+            -odhcpd-ipv6only -odhcp6c \
+            dnsmasq \
             luci luci-i18n-base-zh-cn luci-compat luci-lib-ipkg \
             -wpad-basic-mbedtls wpad-openssl \
             smartdns luci-app-smartdns \
