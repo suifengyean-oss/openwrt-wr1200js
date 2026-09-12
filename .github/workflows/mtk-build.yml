@@ -59,14 +59,21 @@ jobs:
         run: |
           cd openwrt
 
-          echo "=== 添加 MTK 官方 Feed ==="
-          echo "src-git mtk_openwrt_feed https://git01.mediatek.com/openwrt/feeds/mtk-openwrt-feeds" \
+          echo "=== 添加 MTK 官方 Feed (GitHub 镜像) ==="
+          echo "src-git mtk_openwrt_feed https://github.com/GainStrongService/mtk-openwrt-feeds.git" \
             >> feeds.conf.default
           cat feeds.conf.default
 
           echo "=== 更新所有 feeds ==="
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+
+          echo "=== 检查 MTK feed 是否克隆成功 ==="
+          if [ ! -d "./feeds/mtk_openwrt_feed" ]; then
+            echo "❌ MTK feed 克隆失败，退出"
+            exit 1
+          fi
+          echo "✅ MTK feed 已就绪"
 
           echo "=== 应用 MTK 24.10 补丁和文件 ==="
           cp -af ./feeds/mtk_openwrt_feed/24.10/files/* . 2>/dev/null || true
