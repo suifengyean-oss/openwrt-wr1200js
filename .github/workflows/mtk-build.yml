@@ -1,0 +1,457 @@
+name: Build OpenWrt for WR1200JS
+
+on:
+  workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: 'OpenWrt version'
+        required: false
+        default: '25.12.5'
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+env:
+  OPENWRT_VERSION: '25.12.5'
+  TARGET: 'ramips'
+  SUBTARGET: 'mt7621'
+  PROFILE: 'youhua_wr1200js'
+  DEVICE_NAME: 'WR1200JS'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev libncursesw5-dev \
+            zlib1g-dev gawk git gettext libssl-dev xsltproc wget unzip python3 zstd \
+            squashfs-tools upx-ucl || sudo apt-get install -y upx
+
+      - name: Set version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.openwrt_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ env.OPENWRT_VERSION }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download ImageBuilder
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          IB_URL="https://downloads.openwrt.org/releases/${VERSION}/targets/${TARGET}/${SUBTARGET}/openwrt-imagebuilder-${VERSION}-${TARGET}-${SUBTARGET}.Linux-x86_64.tar.zst"
+          echo "Downloading ImageBuilder: $IB_URL"
+          curl -L --retry 5 --retry-delay 15 --connect-timeout 30 -o imagebuilder.tar.zst "$IB_URL"
+          echo "Download complete ($(du -h imagebuilder.tar.zst | cut -f1)), extracting..."
+          mkdir -p openwrt-ib
+          zstd -d imagebuilder.tar.zst -o imagebuilder.tar
+          tar xf imagebuilder.tar --strip-components=1 -C openwrt-ib
+          rm -f imagebuilder.tar.zst imagebuilder.tar
+          echo "ImageBuilder ready: openwrt-ib"
+          ls openwrt-ib/
+
+      - name: Download Argon theme and Wizard
+        run: |
+          echo "=== Downloading luci-theme-argon .ipk ==="
+          DOWNLOAD_OK=0
+          mkdir -p /tmp/argon-files
+
+          for URL in \
+            "https://dl.openwrt.ai/latest/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.7-r14_all.ipk" \
+            "https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9/luci-theme-argon_2.4.7-r14_all.ipk"; do
+            echo "Trying: $URL"
+            curl -L --retry 2 --retry-delay 3 --connect-timeout 20 \
+              -o /tmp/luci-theme-argon.ipk "$URL" 2>/dev/null
+            SIZE=$(stat -c%s /tmp/luci-theme-argon.ipk 2>/dev/null || echo 0)
+            FILE_TYPE=$(file /tmp/luci-theme-argon.ipk 2>/dev/null | head -1)
+            if [ "$SIZE" -gt 1000 ] && echo "$FILE_TYPE" | grep -qiE 'gzip|tar|ar|archive'; then
+              echo "✅ Downloaded argon theme (${SIZE} bytes)"
+              DOWNLOAD_OK=1
+              break
+            else
+              echo "   Failed (${SIZE} bytes, type: ${FILE_TYPE})"
+            fi
+          done
+
+          if [ "$DOWNLOAD_OK" = "0" ]; then
+            echo "⚠ WARNING: Failed to download luci-theme-argon, continuing without theme"
+          else
+            echo "Downloaded:"
+            ls -lh /tmp/luci-theme-argon.ipk
+            cd /tmp/argon-files
+            rm -f debian-binary control.tar.gz control.tar.xz data.tar.gz data.tar.xz
+            if file /tmp/luci-theme-argon.ipk | grep -q gzip; then
+              mv /tmp/luci-theme-argon.ipk /tmp/luci-theme-argon.ipk.gz
+              gzip -d /tmp/luci-theme-argon.ipk.gz
+            fi
+            ar x /tmp/luci-theme-argon.ipk 2>/dev/null || tar xf /tmp/luci-theme-argon.ipk 2>/dev/null
+            if [ -f data.tar.xz ]; then
+              tar -xJf data.tar.xz 2>/dev/null
+            elif [ -f data.tar.gz ]; then
+              tar -xzf data.tar.gz 2>/dev/null
+            fi
+            echo "=== Argon theme files ==="
+            find . -type f | head -20
+            rm -f debian-binary control.tar.gz control.tar.xz data.tar.gz data.tar.xz
+          fi
+
+          # === 下载 luci-app-wizard 配置向导 ===
+          echo "=== 下载 luci-app-wizard ==="
+          mkdir -p /tmp/argon-files
+          WIZARD_URL="https://dl.openwrt.ai/latest/packages/mipsel_24kc/kiddin9/luci-app-wizard_27.090.45134~029b517_all.ipk"
+          curl -L --retry 3 --retry-delay 5 --connect-timeout 30 \
+            -o /tmp/luci-app-wizard.ipk "$WIZARD_URL"
+          WIZARD_SIZE=$(stat -c%s /tmp/luci-app-wizard.ipk 2>/dev/null || echo 0)
+          if [ "$WIZARD_SIZE" -gt 1000 ]; then
+            echo "✅ luci-app-wizard 下载成功 (${WIZARD_SIZE} bytes)"
+            if file /tmp/luci-app-wizard.ipk | grep -q gzip; then
+              echo "wizard ipk is gzip-compressed, decompressing..."
+              mv /tmp/luci-app-wizard.ipk /tmp/luci-app-wizard.ipk.gz
+              gzip -d /tmp/luci-app-wizard.ipk.gz
+            fi
+            cd /tmp
+            mkdir -p wizard-extract
+            cd wizard-extract
+            ar x /tmp/luci-app-wizard.ipk || tar xf /tmp/luci-app-wizard.ipk
+            if [ -f data.tar.xz ]; then
+              tar -xJf data.tar.xz -C /tmp/argon-files
+            elif [ -f data.tar.gz ]; then
+              tar -xzf data.tar.gz -C /tmp/argon-files
+            fi
+            cd /tmp/argon-files
+            rm -rf /tmp/wizard-extract
+            echo "=== Wizard files ==="
+            find . -path '*/wizard*' -type f
+          else
+            echo "⚠ luci-app-wizard 下载失败, 跳过"
+          fi
+
+      - name: Create UCI defaults and system optimizations
+        run: |
+          echo "=== 创建 UCI defaults 快速配置 ==="
+          mkdir -p /tmp/argon-files/etc/uci-defaults
+          
+          cat > /tmp/argon-files/etc/uci-defaults/90-wr1200js-setup << 'UCI_EOF'
+          #!/bin/sh
+          # WR1200JS 首次开机快速配置
+
+          # 1. LAN IP
+          uci set network.lan.ipaddr='192.168.2.1'
+          uci set network.lan.netmask='255.255.255.0'
+          uci set network.lan.dns='8.8.8.8'
+          uci set network.lan.dns='8.8.4.4'
+
+          # 2. WiFi 双频分开
+          uci set wireless.radio0.disabled='0'
+          uci set wireless.radio1.disabled='0'
+          uci delete wireless.radio0.multi_ap 2>/dev/null
+          uci delete wireless.radio1.multi_ap 2>/dev/null
+          uci set wireless.default_radio0.mode='ap'
+          uci set wireless.default_radio0.ssid='OPENWRT'
+          uci set wireless.default_radio0.encryption='none'
+          uci set wireless.default_radio0.network='lan'
+          uci set wireless.default_radio1.mode='ap'
+          uci set wireless.default_radio1.ssid='OPENWRT-5G'
+          uci set wireless.default_radio1.encryption='none'
+          uci set wireless.default_radio1.network='lan'
+
+          # 3. 时区
+          uci set system.@system[0].timezone='CST-8'
+          uci set system.@system[0].zonename='Asia/Shanghai'
+          uci set system.@system[0].hostname='WR1200JS'
+
+          # 4. DHCP
+          uci delete dhcp.lan 2>/dev/null
+          uci set dhcp.lan=dhcp
+          uci set dhcp.lan.interface='lan'
+          uci set dhcp.lan.start='100'
+          uci set dhcp.lan.limit='150'
+          uci set dhcp.lan.leasetime='12h'
+
+          # 5. Wizard 向导配置
+          uci set wizard.default=wizard
+          uci set wizard.default.landing_page='wizard'
+
+          # 6. SmartDNS 配置 (监听 6053，避免与 dnsmasq 冲突)
+          uci set smartdns.@smartdns[0].enabled='1'
+          uci set smartdns.@smartdns[0].port='6053'
+          uci set smartdns.@smartdns[0].tcp_server='1'
+          uci set smartdns.@smartdns[0].ipv6_server='0'
+          uci set smartdns.@smartdns[0].dualstack_ip_selection='1'
+          uci set smartdns.@smartdns[0].serve_expired='1'
+          uci set smartdns.@smartdns[0].cache_size='32768'
+          uci set smartdns.@smartdns[0].rr_ttl_min='300'
+          uci -q delete smartdns.@smartdns[0].server
+          uci add_list smartdns.@smartdns[0].server='223.5.5.5'
+          uci add_list smartdns.@smartdns[0].server='119.29.29.29'
+          uci add_list smartdns.@smartdns[0].server='180.184.1.1'
+          uci add_list smartdns.@smartdns[0].server='1.1.1.1'
+          uci commit smartdns
+
+          # 7. dnsmasq 转发 DNS 到 SmartDNS (127.0.0.1:6053)
+          uci set dhcp.@dnsmasq[0].server='127.0.0.1#6053'
+          uci set dhcp.@dnsmasq[0].noresolv='1'
+          uci set dhcp.@dnsmasq[0].cachesize='0'
+          uci commit dhcp
+
+          # 8. 启用硬件 NAT 卸载 (flow offloading)
+          uci set firewall.@defaults[0].flow_offloading='1'
+          uci set firewall.@defaults[0].flow_offloading_hw='1'
+          uci commit firewall
+
+          # 9. 系统优化：CPU 调度器设为 performance
+          for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+            [ -e "$cpu" ] && echo performance > "$cpu"
+          done
+
+          # 10. 启用 irq-balance 服务
+          /etc/init.d/irq-balance enable
+
+          # 11. 提交
+          uci commit network
+          uci commit wireless
+          uci commit system
+          uci commit wizard
+          exit 0
+          UCI_EOF
+          
+          chmod +x /tmp/argon-files/etc/uci-defaults/90-wr1200js-setup
+          echo "✅ 快速配置脚本已创建"
+
+          # === 创建 IRQ 自动均衡脚本 ===
+          echo "=== 创建 IRQ 自动均衡脚本 ==="
+          mkdir -p /tmp/argon-files/etc/init.d
+          cat > /tmp/argon-files/etc/init.d/irq-balance << 'IRQ_EOF'
+          #!/bin/sh /etc/rc.common
+          START=99
+          start() {
+              sleep 5
+              CPU1_MASK="2"
+              CPU2_MASK="4"
+              CPU3_MASK="8"
+              
+              # eth0 -> CPU3
+              if [ -d "/sys/class/net/eth0/queues/rx-0" ]; then
+                  echo "$CPU3_MASK" > /sys/class/net/eth0/queues/rx-0/rps_cpus 2>/dev/null
+              fi
+              
+              # WAN -> CPU2
+              for iface in wan pppoe-wan; do
+                  if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
+                      echo "$CPU2_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
+                  fi
+              done
+              
+              # LAN -> CPU1
+              for iface in lan1 lan2 lan3 lan4; do
+                  if [ -d "/sys/class/net/$iface/queues/rx-0" ]; then
+                      echo "$CPU1_MASK" > /sys/class/net/$iface/queues/rx-0/rps_cpus 2>/dev/null
+                  fi
+              done
+              
+              # 无线中断 -> CPU3
+              for irq_dir in /proc/irq/*; do
+                  if [ -f "$irq_dir/smp_affinity" ]; then
+                      irq_name=$(grep -m 1 -o 'mt76[^ ]*' "$irq_dir/../interrupts" 2>/dev/null | head -1)
+                      if [ -n "$irq_name" ]; then
+                          echo "$CPU3_MASK" > "$irq_dir/smp_affinity" 2>/dev/null
+                      fi
+                  fi
+              done
+              
+              # 禁用 EEE
+              for iface in eth0 wan lan1 lan2 lan3 lan4; do
+                  ethtool --set-eee $iface eee off 2>/dev/null
+              done
+              
+              # 启用线程化 NAPI
+              echo 1 > /proc/sys/net/core/backlog_threaded 2>/dev/null
+          }
+          IRQ_EOF
+          
+          chmod +x /tmp/argon-files/etc/init.d/irq-balance
+          echo "✅ IRQ 自动均衡脚本已创建"
+
+          # === 创建 sysctl 优化配置 ===
+          echo "=== 创建 sysctl 优化配置 ==="
+          mkdir -p /tmp/argon-files/etc/sysctl.d
+          cat > /tmp/argon-files/etc/sysctl.d/10-custom.conf << 'SYSCTL_EOF'
+          # WR1200JS 内存与网络优化
+          vm.vfs_cache_pressure = 200
+          vm.min_free_kbytes = 4096
+          vm.swappiness = 10
+          net.ipv4.tcp_congestion_control = bbr
+          net.ipv4.tcp_fastopen = 3
+          net.core.netdev_max_backlog = 16384
+          net.netfilter.nf_conntrack_max = 65536
+          net.ipv4.tcp_ecn = 1
+          net.ipv4.tcp_slow_start_after_idle = 0
+          net.core.somaxconn = 65536
+          SYSCTL_EOF
+          echo "✅ sysctl 优化配置已创建"
+
+          # === 添加 kiddin9 软件源 (后续插件安装) ===
+          echo "=== 添加 kiddin9 软件源 ==="
+          mkdir -p /tmp/argon-files/etc/opkg
+          cat > /tmp/argon-files/etc/opkg/customfeeds.conf << 'FEED_EOF'
+          src/gz kiddin9_packages https://dl.openwrt.ai/releases/25.12/packages/mipsel_24kc/kiddin9
+          src/gz kiddin9_base https://dl.openwrt.ai/releases/25.12/targets/ramips/mt7621/packages
+          FEED_EOF
+          echo "✅ kiddin9 软件源已添加"
+
+          echo "FILES directory ready:"
+          find /tmp/argon-files -type d | sort
+
+      - name: Build firmware
+        run: |
+          cd openwrt-ib
+          # 注意：这里显式加入了无线驱动，避免因覆盖 PACKAGES 导致驱动丢失
+          PACKAGES="\
+            -ppp -ppp-mod-pppoe \
+            -odhcpd-ipv6only -odhcp6c \
+            dnsmasq \
+            luci luci-i18n-base-zh-cn luci-compat \
+            -wpad-basic-mbedtls wpad-openssl \
+            luci-app-firewall \
+            kmod-mt7603 kmod-mt76x2 kmod-mt76 wireless-regdb iwinfo \
+            smartdns luci-app-smartdns \
+            luci-app-upnp miniupnpd-nftables \
+            nano wget ethtool \
+            luci-lib-jsonc lua \
+            zram-swap kmod-lib-lzo \
+            kmod-nf-nathelper kmod-nf-flow \
+          "
+          echo "Building firmware for ${PROFILE}..."
+          echo "Packages: ${PACKAGES}"
+          echo "FILES dir: /tmp/argon-files"
+          ls -la /tmp/argon-files/ 2>/dev/null || echo "FILES directory empty or not exists"
+          make image PROFILE="${PROFILE}" \
+            PACKAGES="${PACKAGES}" \
+            FILES="/tmp/argon-files" \
+            DISABLED_SERVICES="" \
+            BIN_DIR="$(pwd)/output" \
+            EXTRA_IMAGE_NAME="custom"
+          echo "Build completed!"
+          ls -lh output/
+
+      - name: UPX compress large binaries
+        run: |
+          echo "=== UPX 压缩 (保守参数) ==="
+          if command -v upx &> /dev/null; then
+            find openwrt-ib/output/ -type f \( -name "*.elf" -o -name "*.bin" \) | while read -r file; do
+              SIZE=$(stat -c%s "$file" 2>/dev/null || echo 0)
+              if [ "$SIZE" -gt 204800 ]; then
+                echo "尝试压缩: $file ($((SIZE / 1024)) KB)"
+                upx --lzma --best "$file" 2>/dev/null && echo "  ✅ 完成" || echo "  ⚠ 跳过 (非可执行文件或格式不支持)"
+              fi
+            done
+          else
+            echo "⚠ UPX 未安装，跳过"
+          fi
+
+      - name: Check firmware size
+        run: |
+          echo "=== 固件文件 ==="
+          ls -lh openwrt-ib/output/ 2>/dev/null
+          echo ""
+          echo "=== 空间检查 ==="
+          FIRMWARE_SIZE=$(stat -c%s openwrt-ib/output/*sysupgrade*.bin 2>/dev/null || echo 0)
+          MAX_SIZE=$((15 * 1024 * 1024))
+          echo "固件大小: $((FIRMWARE_SIZE / 1024 / 1024)) MB ($FIRMWARE_SIZE bytes)"
+          echo "最大限制: $((MAX_SIZE / 1024 / 1024)) MB ($MAX_SIZE bytes)"
+          if [ "$FIRMWARE_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "❌ 固件超出 flash 空间限制!"
+            exit 1
+          fi
+          echo "✅ 固件大小合适"
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-${{ env.DEVICE_NAME }}-${{ steps.version.outputs.version }}
+          path: openwrt-ib/output/*
+          retention-days: 30
+
+      - name: Generate checksums
+        run: |
+          cd openwrt-ib/output
+          sha256sum * > sha256sums.txt
+          echo "=== SHA256 校验和 ==="
+          cat sha256sums.txt
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "OpenWrt ${{ steps.version.outputs.version }} for ${{ env.DEVICE_NAME }}"
+          body: |
+            ## OpenWrt ${{ steps.version.outputs.version }} for YouHua WR1200JS
+
+            ### 设备信息
+            - **型号**: YouHua WR1200JS
+            - **SoC**: MediaTek MT7621AT (MIPS 1004Kc, 4核 880MHz)
+            - **RAM**: 128MB
+            - **Flash**: 16MB SPI NOR
+            - **WiFi**: MT7603E (2.4G) + MT76x2E (5G)
+            - **Target**: ramips/mt7621 (mipsel_24kc)
+
+            ### 更新日志
+            #### v1.0.38
+            - **修复无线驱动包名错误**：将 `kmod-mt7603e` → `kmod-mt7603`，`kmod-mt76x2e` → `kmod-mt76x2`，新增 `kmod-mt76` 核心模块
+            - **智能 IRQ/RPS 中断均衡**：自动检测网卡与中断，无需手动配置
+            - **自动禁用 EEE**：解决 MT7621 平台网络稳定性问题
+            - **线程化 NAPI**：提升高负载下网络转发性能
+            - **ZRAM 内存压缩**：缓解 128MB 内存压力
+            - **sysctl 网络优化**：BBR、连接跟踪、队列长度等
+            - **硬件 NAT 卸载**：降低千兆转发 CPU 占用
+            - **SmartDNS + dnsmasq 协同**：SmartDNS 监听 6053，dnsmasq 转发
+            - **保留 Argon 主题、Wizard、UPnP、nano、wget、ethtool**
+            - 不含 PPPoE、SQM、QoSmate
+
+            ### 固件说明
+            基于 OpenWrt 官方 ImageBuilder 定制，精简稳定，全自动优化。
+            **本固件不含 PPPoE 拨号功能，适用于二级路由（DHCP 上网）场景。**
+
+            ### 安装方法
+            1. 下载最新 Release 中的 `squashfs-sysupgrade.bin` 文件
+            2. 刷入 Breed 后断电，按住 WiFi 按钮插电，访问 `192.168.1.1` 进入 Breed
+            3. 恢复出厂后刷入之前下载的 bin 文件
+
+            ### 预装软件
+            | 分类 | 软件 |
+            |------|------|
+            | Web 管理 | LuCI + Argon 主题 + 中文 + Wizard |
+            | WiFi | wpad-openssl + MT7603 + MT76x2 驱动 |
+            | 网络 | 静态地址 / DHCP |
+            | DNS | SmartDNS (监听 6053) + dnsmasq 转发 |
+            | UPnP | miniupnpd-nftables |
+            | 工具 | nano, wget, ethtool |
+            | 内存优化 | ZRAM 压缩 |
+            | 网络加速 | 硬件 NAT 卸载 (flow offloading) |
+            | 系统优化 | 智能 IRQ 均衡、线程化 NAPI、自动禁用 EEE、CPU 调度器 performance |
+            | 空间优化 | UPX 二进制压缩 |
+
+            ### 硬件支持
+            ✅ 所有 10 个 LED 灯 (Power/2.4G/5G/WPS/Internet/LAN1-4/USB)
+            ✅ 所有 3 个按钮 (Reset/WPS/WiFi)
+            ✅ 5 个千兆网口 (4 LAN + 1 WAN)
+            ✅ 双频 WiFi (2.4G b/g/n + 5G a/n/ac)
+            ✅ USB 3.0 端口
+            ✅ 串口 (115200/8N1)
+          files: |
+            openwrt-ib/output/*factory*.bin
+            openwrt-ib/output/*sysupgrade*.bin
+            openwrt-ib/output/sha256sums.txt
+          draft: false
+          prerelease: false
