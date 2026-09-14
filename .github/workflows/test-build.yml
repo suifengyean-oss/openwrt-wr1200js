@@ -57,13 +57,15 @@ jobs:
           fi
 
       # ============================================================
-      # 3. 克隆 OpenWrt 源码
+      # 3. 克隆 OpenWrt 源码（已修复分支名）
       # ============================================================
       - name: Clone OpenWrt source
         run: |
           VERSION=${{ steps.version.outputs.version }}
           echo "Cloning OpenWrt ${VERSION} source..."
-          git clone --depth 1 https://github.com/openwrt/openwrt.git -b openwrt-${VERSION} openwrt-src
+          # 优先尝试标准的 v${VERSION} 标签，失败则回退到 openwrt-${VERSION} 分支
+          git clone -b v${VERSION} --single-branch --depth=1 https://github.com/openwrt/openwrt.git openwrt-src || \
+          git clone -b openwrt-${VERSION} --single-branch --depth=1 https://github.com/openwrt/openwrt.git openwrt-src
           cd openwrt-src
           echo "Source ready: $(pwd)"
           ls -la
