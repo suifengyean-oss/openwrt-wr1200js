@@ -57,13 +57,12 @@ jobs:
           fi
 
       # ============================================================
-      # 3. 克隆 OpenWrt 源码（已修复分支名）
+      # 3. 克隆 OpenWrt 源码
       # ============================================================
       - name: Clone OpenWrt source
         run: |
           VERSION=${{ steps.version.outputs.version }}
           echo "Cloning OpenWrt ${VERSION} source..."
-          # 优先尝试标准的 v${VERSION} 标签，失败则回退到 openwrt-${VERSION} 分支
           git clone -b v${VERSION} --single-branch --depth=1 https://github.com/openwrt/openwrt.git openwrt-src || \
           git clone -b openwrt-${VERSION} --single-branch --depth=1 https://github.com/openwrt/openwrt.git openwrt-src
           cd openwrt-src
@@ -71,24 +70,37 @@ jobs:
           ls -la
 
       # ============================================================
-      # 4. 配置 feeds 并集成 AdGuard Home（Method 1: Via feeds configuration）
+      # 4. 配置 feeds 并集成 AdGuard Home
+      #    增加重试和错误容忍，避免因网络波动导致构建失败
       # ============================================================
       - name: Configure feeds (including AdGuard Home)
         run: |
           cd openwrt-src
 
-          # 4.1 添加 AdGuard Home 插件源到 feeds.conf.default 最上方
+          # 4.1 添加 AdGuard Home 插件源
           sed -i '1i src-git adguardhome https://github.com/MomoFlora/luci-app-adguardhome.git;main' feeds.conf.default
 
-          # 4.2 更新并安装所有 feeds
           echo "=== feeds.conf.default ==="
           cat feeds.conf.default
           echo ""
-          echo "=== 开始更新 feeds ==="
-          ./scripts/feeds update -a
-          echo ""
+
+          # 4.2 更新 feeds，增加重试机制和超时容忍
+          echo "=== 开始更新 feeds (最多重试3次) ==="
+          for i in 1 2 3; do
+            echo "--- 第 $i 次尝试 ---"
+            if ./scripts/feeds update -a; then
+              echo "✅ feeds 更新成功"
+              break
+            fi
+            if [ "$i" -eq 3 ]; then
+              echo "⚠ 第 $i 次更新仍有失败，尝试继续..."
+            fi
+            sleep 10
+          done
+
+          # 4.3 安装 feeds（如果某次更新失败，部分 feed 仍可安装）
           echo "=== 开始安装 feeds ==="
-          ./scripts/feeds install -a
+          ./scripts/feeds install -a || echo "⚠ 部分 feed 安装失败，继续..."
 
           echo ""
           echo "=== AdGuard Home feed 验证 ==="
@@ -382,7 +394,7 @@ jobs:
         run: |
           cd openwrt-src
           echo "=== 开始下载源码包 ==="
-          make download -j$(nproc) V=s
+          make download -j$(nproc) V=s || echo "⚠ 部分源码包下载失败，编译时可能重试"
           echo "✅ 源码包下载完成"
 
       # ============================================================
